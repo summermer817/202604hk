@@ -272,6 +272,32 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--cream);color:var(--i
 .budget-row .fg{flex:1;}
 .budget-converted{background:var(--paper);border:1px solid var(--paper2);border-radius:8px;padding:8px 10px;font-size:0.75rem;color:var(--ink3);min-width:90px;text-align:center;}
 .budget-converted strong{color:var(--jeju);font-size:0.85rem;}
+
+/* PHOTO UPLOAD */
+.photo-upload-area{border:2px dashed var(--paper2);border-radius:12px;padding:14px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;position:relative;overflow:hidden;}
+.photo-upload-area:hover{border-color:var(--jeju);background:rgba(232,101,10,0.04);}
+.photo-upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.photo-upload-icon{font-size:1.5rem;margin-bottom:4px;}
+.photo-upload-text{font-size:0.75rem;color:var(--ink3);line-height:1.5;}
+.photo-upload-text strong{color:var(--jeju);}
+.photo-preview-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.photo-preview-item{position:relative;width:72px;height:72px;border-radius:10px;overflow:hidden;border:1.5px solid var(--paper2);flex-shrink:0;}
+.photo-preview-item img{width:100%;height:100%;object-fit:cover;}
+.photo-preview-del{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.55);border:none;color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;}
+.photo-upload-progress{font-size:0.7rem;color:var(--ink3);margin-top:6px;text-align:center;min-height:18px;}
+/* Photo strip on timeline card */
+.tl-photos{display:flex;gap:6px;margin-top:8px;overflow-x:auto;padding-bottom:2px;}
+.tl-photos::-webkit-scrollbar{display:none;}
+.tl-photo-thumb{flex-shrink:0;width:72px;height:72px;border-radius:9px;overflow:hidden;cursor:pointer;border:1.5px solid var(--paper2);}
+.tl-photo-thumb img{width:100%;height:100%;object-fit:cover;transition:opacity 0.15s;}
+.tl-photo-thumb:hover img{opacity:0.85;}
+/* Lightbox */
+#lightbox{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.88);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px;}
+#lightbox.show{display:flex;}
+#lightbox img{max-width:100%;max-height:80dvh;border-radius:12px;object-fit:contain;}
+#lightbox-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+#lightbox-del{background:rgba(232,101,10,0.8);border:none;color:#fff;padding:8px 20px;border-radius:20px;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:'Noto Sans TC',sans-serif;}
+#lightbox-del:hover{background:var(--jeju);}
 .m-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
 .btn-cancel{background:none;border:1.5px solid var(--paper2);border-radius:10px;padding:9px 16px;color:var(--ink2);font-family:'Noto Sans TC',sans-serif;font-size:0.855rem;cursor:pointer;transition:background 0.15s;}
 .btn-cancel:hover{background:var(--paper);}
@@ -347,6 +373,13 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--cream);color:var(--i
   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
 </button>
 
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()">✕</button>
+  <img id="lightbox-img" src="" alt="">
+  <button id="lightbox-del" onclick="deletePhoto()">🗑 刪除這張照片</button>
+</div>
+
 <!-- Modal Overlay -->
 <div id="modal-overlay" onclick="handleOverlayClick(event)">
 
@@ -391,6 +424,16 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--cream);color:var(--i
     <div class="fg">
       <label class="fl">備註 <span class="fl-hint">（選填）</span></label>
       <textarea id="it-note" rows="3" placeholder="例：記得早點出發避開人潮" class="fta"></textarea>
+    </div>
+    <div class="fg">
+      <label class="fl">照片筆記 <span class="fl-hint">（選填，可多張）</span></label>
+      <div class="photo-upload-area" id="photo-drop-zone">
+        <input type="file" id="photo-file-input" accept="image/*" multiple onchange="handlePhotoSelect(event)">
+        <div class="photo-upload-icon">📷</div>
+        <div class="photo-upload-text">點擊上傳照片<br><strong>支援多張，自動壓縮</strong></div>
+      </div>
+      <div class="photo-preview-list" id="photo-preview-list"></div>
+      <div class="photo-upload-progress" id="photo-upload-progress"></div>
     </div>
     <div class="fg">
       <label class="fl">預計花費 <span class="fl-hint">（選填，自動匯入記帳）</span></label>
@@ -450,7 +493,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--cream);color:var(--i
   <!-- Expense Modal -->
   <div class="modal" id="expense-modal" onclick="event.stopPropagation()">
     <div class="m-handle"></div>
-    <div class="m-title">新增花費</div>
+    <div class="m-title" id="ex-modal-title">新增花費</div>
+    <input type="hidden" id="ex-edit-id">
     <div class="fg">
       <label class="fl">項目名稱</label>
       <input type="text" id="ex-title" placeholder="例：晚餐-우진해장국" class="fi">
@@ -488,6 +532,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--cream);color:var(--i
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+
 // ⚠️ 請換成您自己的 Firebase 專案設定
 const fbApp = initializeApp({
   apiKey:"AIzaSyByjMMLqvP3AMxSEom8xaqc6OuTWnnQm_o",
@@ -498,6 +543,8 @@ const fbApp = initializeApp({
   appId:"1:136735319981:web:258a628dbdff6cf6112324"
 });
 const db = getFirestore(fbApp);
+
+
 
 // 1 KRW ≈ 0.023 TWD（約43:1）
 const KRW_TO_TWD = 0.023;
@@ -561,6 +608,10 @@ const SEED_EX=[
 let currentTab='itinerary', selectedDate='2026-04-19', expFilter='all';
 let appData={itinerary:{},todos:[],expenses:[]};
 let dragSrcIdx=null;
+// Photo state
+let pendingPhotos=[]; // {file, previewUrl} – 選取但尚未儲存
+let existingPhotos=[]; // {url} – 已存為 Base64
+let lightboxUrl='';
 
 const $=id=>document.getElementById(id);
 function setMsg(m){$('ld-msg').textContent=m;}
@@ -724,6 +775,8 @@ function buildItinerary(){
     const noteHtml=ev.note?`<div class="tl-note">${esc(ev.note)}</div>`:'';
     const budgHtml=budgetStr(ev.budget,ev.budgetCur);
     const whoHtml=ev.who?whoBadge(ev.who):'';
+    const photosHtml=(ev.photos&&ev.photos.length)?
+      `<div class="tl-photos">${ev.photos.map(p=>`<div class="tl-photo-thumb" onclick="openLightbox('${esc(p.url)}')"><img src="${esc(p.url)}" loading="lazy"></div>`).join('')}</div>`:'';
     tl+=`<div class="tl-item" style="animation-delay:${i*0.05}s">
       <div class="tl-time-col"><div class="tl-time-start">${ev.time}</div>${timeEnd}</div>
       <div class="tl-spine"><div class="tl-dot"></div><div class="tl-line"></div></div>
@@ -736,7 +789,7 @@ function buildItinerary(){
             <button class="tl-btn del" onclick="deleteItinerary('${ev.id}')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
           </div>
         </div>
-        ${loc}${budgHtml}${noteHtml}
+        ${loc}${budgHtml}${noteHtml}${photosHtml}
       </div>
     </div>`;
   });
@@ -877,6 +930,7 @@ function buildExpenses(){
           <div class="exp-amt ${isKrw?'krw':'twd'}">${e.currency} ${(+e.amount).toLocaleString()}</div>
           ${isKrw?`<div class="exp-approx">≈ NT$${Math.round(e.amount*KRW_TO_TWD).toLocaleString()}</div>`:''}
         </div>
+        <button class="exp-del-btn" style="color:var(--ink4)" onclick="openEditExpense('${e.id}')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button>
         <button class="exp-del-btn" onclick="deleteExpense('${e.id}')"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
       </div>
     </div>`;
@@ -957,6 +1011,12 @@ window.updateBudgetPreview=function(){
 function openItineraryModal(editId=null){
   $('it-edit-id').value=editId||'';
   $('it-modal-title').textContent=editId?'編輯行程':'新增行程';
+  // reset photo state
+  pendingPhotos=[];
+  existingPhotos=[];
+  $('photo-preview-list').innerHTML='';
+  $('photo-upload-progress').textContent='';
+  $('photo-file-input').value='';
   if(editId){
     let ev=null;
     Object.values(appData.itinerary).forEach(evs=>evs.forEach(e=>{if(e.id===editId)ev=e;}));
@@ -970,6 +1030,11 @@ function openItineraryModal(editId=null){
       $('it-budget').value=ev.budget||'';
       $('it-budget-cur').value=ev.budgetCur||'KRW';
       updateBudgetPreview();
+      // load existing photos into preview
+      if(ev.photos&&ev.photos.length){
+        existingPhotos=[...ev.photos];
+        renderPhotoPreview();
+      }
     }
   } else {
     selectCat('other');
@@ -995,8 +1060,24 @@ window.saveItinerary=async function(){
   const budgetCur=$('it-budget-cur').value;
 
   setSyncState('saving','儲存中...');
+
+  // 壓縮為 Base64 直接存 Firestore（每張約 30-60KB，上限 5 張）
   const docId=id||('j'+Date.now());
-  const payload={id:docId,cat,title,time,timeEnd,location,note,budget,budgetCur,date:selectedDate,who:'all',createdAt:Date.now()};
+  let uploadedPhotos=[...existingPhotos];
+  if(pendingPhotos.length>0){
+    const prog=$('photo-upload-progress');
+    const canAdd=5-uploadedPhotos.length;
+    if(canAdd<=0){alert('每個行程最多 5 張照片');setSyncState('online','已同步');return;}
+    const toUpload=pendingPhotos.slice(0,canAdd);
+    for(let i=0;i<toUpload.length;i++){
+      prog.textContent=`壓縮照片 ${i+1} / ${toUpload.length}...`;
+      const b64=await compressToBase64(toUpload[i].file,500,0.72);
+      uploadedPhotos.push({url:b64});
+    }
+    prog.textContent='';
+  }
+
+  const payload={id:docId,cat,title,time,timeEnd,location,note,budget,budgetCur,date:selectedDate,who:'all',photos:uploadedPhotos,createdAt:Date.now()};
   await setDoc(doc(db,'jeju_itinerary',docId),payload);
 
   if(budget>0){
@@ -1092,19 +1173,39 @@ window.onDrop=async function(e,dropIdx){
 };
 
 // ── Expenses ──
-function openExpenseModal(){
-  $('ex-title').value='';$('ex-amount').value='';$('ex-cur').value='KRW';$('ex-source').value='trip';
+function openExpenseModal(editId=null){
+  $('ex-edit-id').value=editId||'';
+  $('ex-modal-title').textContent=editId?'編輯花費':'新增花費';
+  if(editId){
+    const e=appData.expenses.find(e=>e.id===editId);
+    if(e){
+      $('ex-title').value=e.title;
+      $('ex-amount').value=e.amount;
+      $('ex-cur').value=e.currency||'KRW';
+      $('ex-source').value=e.source||'trip';
+    }
+  } else {
+    $('ex-title').value='';$('ex-amount').value='';$('ex-cur').value='KRW';$('ex-source').value='trip';
+  }
   openM('expense-modal');
+  setTimeout(()=>$('ex-title').focus(),150);
 }
+window.openEditExpense=id=>openExpenseModal(id);
 window.saveExpense=async function(){
+  const id=$('ex-edit-id').value;
   const title=$('ex-title').value.trim();
   const amount=$('ex-amount').value;
   const currency=$('ex-cur').value;
   const source=$('ex-source').value;
   if(!title||!amount){alert('請填寫項目與金額');return;}
   setSyncState('saving','儲存中...');
-  const id='je'+Date.now();
-  await setDoc(doc(db,'jeju_expenses',id),{id,title,amount:+amount,currency,source,createdAt:Date.now(),fromItinerary:false});
+  if(id){
+    // edit existing
+    await updateDoc(doc(db,'jeju_expenses',id),{title,amount:+amount,currency,source});
+  } else {
+    const newId='je'+Date.now();
+    await setDoc(doc(db,'jeju_expenses',newId),{id:newId,title,amount:+amount,currency,source,createdAt:Date.now(),fromItinerary:false});
+  }
   closeModal();
 };
 window.deleteExpense=async function(id){
@@ -1114,11 +1215,88 @@ window.deleteExpense=async function(id){
 };
 
 // ── Shared ──
-window.openGoogleMaps=loc=>{if(loc)window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(loc),'_blank');};
+window.openGoogleMaps=loc=>{if(loc)window.open('https://map.naver.com/p/search/'+encodeURIComponent(loc),'_blank');};
 window.calcEx=function(src){
   const krw=$('calc-krw'),twd=$('calc-twd');
   if(src==='krw'){const v=parseFloat(krw.value);twd.value=isNaN(v)?'':Math.round(v*KRW_TO_TWD);}
   else{const v=parseFloat(twd.value);krw.value=isNaN(v)?'':Math.round(v/KRW_TO_TWD);}
+};
+
+// ── Photo helpers ──
+function compressToBase64(file,maxPx,quality){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      if(w>maxPx||h>maxPx){
+        if(w>h){h=Math.round(h*maxPx/w);w=maxPx;}
+        else{w=Math.round(w*maxPx/h);h=maxPx;}
+      }
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg',quality));
+    };
+    img.src=url;
+  });
+}
+
+function renderPhotoPreview(){
+  const list=$('photo-preview-list');
+  list.innerHTML='';
+  existingPhotos.forEach((p,i)=>{
+    const div=document.createElement('div');div.className='photo-preview-item';
+    div.innerHTML=`<img src="${p.url}" loading="lazy"><button class="photo-preview-del" onclick="removeExistingPhoto(${i})">✕</button>`;
+    list.appendChild(div);
+  });
+  pendingPhotos.forEach((p,i)=>{
+    const div=document.createElement('div');div.className='photo-preview-item';
+    div.innerHTML=`<img src="${p.previewUrl}"><button class="photo-preview-del" onclick="removePendingPhoto(${i})">✕</button>`;
+    list.appendChild(div);
+  });
+  const used=existingPhotos.length+pendingPhotos.length;
+  const prog=$('photo-upload-progress');
+  prog.textContent=used>0?`已選 ${used} 張 · 還可加 ${5-used} 張（上限5張）`:'';
+}
+
+window.handlePhotoSelect=function(e){
+  const files=Array.from(e.target.files);
+  const canAdd=5-(existingPhotos.length+pendingPhotos.length);
+  files.slice(0,canAdd).forEach(file=>{
+    if(!file.type.startsWith('image/'))return;
+    pendingPhotos.push({file,previewUrl:URL.createObjectURL(file)});
+  });
+  e.target.value='';
+  renderPhotoPreview();
+};
+window.removeExistingPhoto=function(i){existingPhotos.splice(i,1);renderPhotoPreview();};
+window.removePendingPhoto=function(i){URL.revokeObjectURL(pendingPhotos[i].previewUrl);pendingPhotos.splice(i,1);renderPhotoPreview();};
+
+// ── Lightbox ──
+window.openLightbox=function(url){
+  lightboxUrl=url;
+  $('lightbox-img').src=url;
+  $('lightbox').classList.add('show');
+};
+window.closeLightbox=function(){
+  $('lightbox').classList.remove('show');
+  lightboxUrl='';
+};
+window.deletePhoto=async function(){
+  if(!lightboxUrl)return;
+  if(!confirm('確定要刪除這張照片？'))return;
+  setSyncState('saving','刪除中...');
+  let foundEv=null;
+  Object.values(appData.itinerary).forEach(evs=>evs.forEach(ev=>{
+    if(ev.photos&&ev.photos.some(p=>p.url===lightboxUrl))foundEv=ev;
+  }));
+  if(foundEv){
+    const newPhotos=foundEv.photos.filter(p=>p.url!==lightboxUrl);
+    await updateDoc(doc(db,'jeju_itinerary',foundEv.id),{photos:newPhotos});
+  }
+  closeLightbox();
 };
 </script>
 </body>
